@@ -1,0 +1,51 @@
+{
+  "name": "dsh-omics-canvas",
+  "version": "0.3.0",
+  "description": "Omics Canvas: DSH sidebar panel, agent tools, editable R/Python computation nodes, cache and publication reports for omics analysis",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./client/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "LICENSE",
+    "src",
+    "client",
+    "cordis.patch.yml",
+    "README.dsh.md",
+    "README.md",
+    "README.zh.md",
+    "pyproject.toml",
+    "omics_canvas",
+    "r",
+    "py",
+    "web",
+    "docs",
+    "tests"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-session"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  },
+  "license": "MIT"
+}

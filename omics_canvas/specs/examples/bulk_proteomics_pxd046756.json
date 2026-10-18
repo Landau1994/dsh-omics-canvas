@@ -1,0 +1,208 @@
+{
+  "name": "Bulk proteomics PXD046756 (exMM vs BV2)",
+  "nodes": [
+    {
+      "id": "load",
+      "type": "prot.load_maxquant",
+      "x": 40,
+      "y": 260,
+      "params": {
+        "protein_groups": "scp_AD/data/CR_2024/PXD046756/proteinGroups.txt",
+        "intensity_type": "Intensity"
+      }
+    },
+    {
+      "id": "filter",
+      "type": "prot.filter",
+      "x": 300,
+      "y": 260,
+      "params": {
+        "zero_as_missing": true,
+        "min_valid_frac": 0.5,
+        "min_peptides": 1
+      }
+    },
+    {
+      "id": "transform",
+      "type": "prot.transform",
+      "x": 560,
+      "y": 100,
+      "params": {
+        "log2": true,
+        "normalize": "median"
+      }
+    },
+    {
+      "id": "impute",
+      "type": "prot.impute",
+      "x": 560,
+      "y": 320,
+      "params": {
+        "method": "MinProb",
+        "width": 0.3,
+        "downshift": 1.8
+      }
+    },
+    {
+      "id": "pca",
+      "type": "prot.pca",
+      "x": 820,
+      "y": 60,
+      "params": {
+        "group_column": "group",
+        "ntop": 500,
+        "title": "PXD046756 PCA"
+      }
+    },
+    {
+      "id": "de",
+      "type": "prot.de",
+      "x": 820,
+      "y": 220,
+      "params": {
+        "group_column": "group",
+        "numerator": "exMM",
+        "denominator": "BV2",
+        "trend": true,
+        "robust": true,
+        "padj_cutoff": 0.05,
+        "lfc_cutoff": 1
+      }
+    },
+    {
+      "id": "volcano",
+      "type": "prot.volcano",
+      "x": 820,
+      "y": 400,
+      "params": {
+        "padj_cutoff": 0.05,
+        "lfc_cutoff": 1,
+        "label_top": 12,
+        "title": "exMM vs BV2"
+      }
+    },
+    {
+      "id": "heatmap",
+      "type": "prot.heatmap",
+      "x": 820,
+      "y": 560,
+      "params": {
+        "top_n": 40,
+        "group_column": "group",
+        "only_significant": false,
+        "title": "Top differential proteins"
+      }
+    },
+    {
+      "id": "go_ora",
+      "type": "prot.enrich_ora",
+      "x": 1080,
+      "y": 400,
+      "params": {
+        "organism": "mouse",
+        "ontology": "BP",
+        "direction": "both",
+        "padj_cutoff": 0.05,
+        "lfc_cutoff": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "load",
+      "from_port": "matrix",
+      "to": "filter",
+      "to_port": "matrix"
+    },
+    {
+      "from": "load",
+      "from_port": "samples",
+      "to": "filter",
+      "to_port": "samples"
+    },
+    {
+      "from": "load",
+      "from_port": "features",
+      "to": "filter",
+      "to_port": "features"
+    },
+    {
+      "from": "filter",
+      "from_port": "matrix",
+      "to": "transform",
+      "to_port": "matrix"
+    },
+    {
+      "from": "filter",
+      "from_port": "samples",
+      "to": "transform",
+      "to_port": "samples"
+    },
+    {
+      "from": "transform",
+      "from_port": "matrix",
+      "to": "impute",
+      "to_port": "matrix"
+    },
+    {
+      "from": "transform",
+      "from_port": "samples",
+      "to": "impute",
+      "to_port": "samples"
+    },
+    {
+      "from": "impute",
+      "from_port": "matrix",
+      "to": "pca",
+      "to_port": "matrix"
+    },
+    {
+      "from": "impute",
+      "from_port": "samples",
+      "to": "pca",
+      "to_port": "samples"
+    },
+    {
+      "from": "impute",
+      "from_port": "matrix",
+      "to": "de",
+      "to_port": "matrix"
+    },
+    {
+      "from": "impute",
+      "from_port": "samples",
+      "to": "de",
+      "to_port": "samples"
+    },
+    {
+      "from": "de",
+      "from_port": "results",
+      "to": "volcano",
+      "to_port": "results"
+    },
+    {
+      "from": "de",
+      "from_port": "results",
+      "to": "heatmap",
+      "to_port": "results"
+    },
+    {
+      "from": "impute",
+      "from_port": "matrix",
+      "to": "heatmap",
+      "to_port": "matrix"
+    },
+    {
+      "from": "impute",
+      "from_port": "samples",
+      "to": "heatmap",
+      "to_port": "samples"
+    },
+    {
+      "from": "de",
+      "from_port": "results",
+      "to": "go_ora",
+      "to_port": "results"
+    }
+  ]
+}

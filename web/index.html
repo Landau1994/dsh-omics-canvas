@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Omics Canvas</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">OC</span>
+        <div>
+          <div class="brand-title">Omics Canvas</div>
+          <div class="brand-sub" id="brand-sub" data-i18n="brand.sub">bulk RNA-seq / bulk proteomics</div>
+        </div>
+      </div>
+
+      <div class="topbar-center">
+        <select id="runs-select" title="Load a previous run and its results">
+          <option value="" data-i18n="toolbar.previous">Previous runs…</option>
+        </select>
+        <select id="example-select" title="Load an example canvas">
+          <option value="" data-i18n="toolbar.example">Load example…</option>
+        </select>
+        <input type="text" id="graph-name" class="graph-name" value="Untitled canvas" />
+      </div>
+
+      <div class="topbar-actions">
+        <button id="btn-chat" class="btn ghost" title="Chat with the DSH agent" data-i18n="toolbar.chat">Chat</button>
+        <button id="btn-refresh-catalog" class="btn ghost" title="Reload nodes created by the agent" data-i18n="toolbar.refresh">Refresh</button>
+        <button id="btn-results" class="btn ghost" title="Browse all run outputs" data-i18n="toolbar.results">Results</button>
+        <button id="btn-toggle-palette" class="btn ghost" title="Toggle the node library" data-i18n="toolbar.library">Library</button>
+        <button id="btn-toggle-inspector" class="btn ghost" title="Toggle the inspector" data-i18n="toolbar.inspector">Inspector</button>
+        <button id="btn-new" class="btn ghost" title="New canvas" data-i18n="toolbar.new">New</button>
+        <button id="btn-import" class="btn ghost" title="Import canvas JSON" data-i18n="toolbar.import">Import</button>
+        <button id="btn-export" class="btn ghost" title="Export canvas JSON" data-i18n="toolbar.export">Export</button>
+        <button id="btn-fit" class="btn ghost" title="Fit graph to view" data-i18n="toolbar.fit">Fit</button>
+        <button id="btn-run" class="btn primary" title="Run this canvas" data-i18n="toolbar.run">Run canvas</button>
+        <input type="file" id="file-input" accept=".json,application/json" hidden />
+      </div>
+    </header>
+
+    <aside id="palette">
+      <div class="panel-title-row">
+        <div class="panel-title" data-i18n="palette.title">Node library</div>
+        <button id="btn-new-node" class="btn ghost mini" title="Create a custom node" data-i18n="toolbar.newNode">+ New</button>
+      </div>
+      <input id="palette-search" class="search" type="search" placeholder="Search nodes…" data-i18n-placeholder="palette.search" />
+      <div id="palette-list"></div>
+      <div class="palette-hint">
+        <span data-i18n="palette.hint">Click a node to add it to the canvas. Drag from an output port to an input port to connect nodes.</span>
+      </div>
+    </aside>
+
+    <main id="canvas-wrap">
+      <div id="canvas">
+        <div id="world">
+          <svg id="edges" width="8000" height="8000" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+      </div>
+      <div class="canvas-hud">
+        <span id="zoom-label">100%</span>
+        <span class="hud-sep">·</span>
+        <span id="run-status">idle</span>
+      </div>
+      <div id="empty-hint" class="empty-hint">
+        <div class="empty-title" data-i18n="empty.title">Build a canvas</div>
+        <div data-i18n="empty.body">Pick nodes from the left, connect them, then press Run canvas.</div>
+      </div>
+    </main>
+
+    <aside id="inspector">
+      <div class="panel-title" data-i18n="inspector.title">Inspector</div>
+      <div id="inspector-body" class="inspector-body">
+        <div class="muted">Select a node to edit its parameters.</div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="results-drawer" class="results-drawer hidden"></div>
+  <aside id="chat-drawer" class="chat-drawer hidden"></aside>
+  <script src="app.js"></script>
+</body>
+</html>

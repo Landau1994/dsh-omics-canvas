@@ -1,0 +1,486 @@
+# Omics Canvas node catalog.
+# Every node is executed by the R dispatcher in r/dispatch.R.
+# Inputs and outputs are named ports; edges connect an output port of one
+# node to an input port of another node. Params are rendered as a form by
+# the canvas editor and forwarded verbatim to the R function.
+
+plugin:
+  id: omics-canvas
+  name: Omics Canvas
+  version: 0.1.0
+  environment: scptools
+  description: >-
+    Canvas-style node graph for bulk omics analysis. Ships with a bulk
+    RNA-seq flow (expression matrix -> QC -> normalization -> DE ->
+    visualization/enrichment) and a bulk proteomics flow (MaxQuant
+    proteinGroups -> filtering -> log2/normalization -> imputation ->
+    limma -> visualization/enrichment).
+
+categories:
+  - id: rna
+    label: Bulk RNA-seq
+    color: "#2563eb"
+  - id: proteomics
+    label: Bulk proteomics
+    color: "#c2410c"
+
+nodes:
+  # ---------------------------------------------------------------------------
+  # Bulk RNA-seq
+  # ---------------------------------------------------------------------------
+  - id: rna.load_matrix
+    title: Load expression matrix
+    category: rna
+    r_function: rna_load_matrix
+    r_file: rna_nodes.R
+    description: >-
+      Read a genes x samples expression matrix (TSV/CSV) plus an optional
+      sample sheet. The matrix may contain annotation columns such as
+      gene_symbol and gene_biotype.
+    inputs: []
+    outputs:
+      - {id: expr, label: Expression matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: features, label: Feature annotation, type: table}
+    params:
+      - {name: expression, label: Expression matrix, type: file, required: true,
+         help: "Genes x samples table. Project example: scp_CAD/res/txt/GSE116271_bulk_2026-10-15/counts_matrix.tsv"}
+      - {name: sample_sheet, label: Sample sheet, type: file, required: false,
+         help: "Optional TSV with sample_id and group columns. Project example: scp_CAD/res/txt/GSE116271_bulk_2026-10-15/samples.tsv"}
+      - {name: matrix_type, label: Matrix type, type: enum,
+         options: [counts, tpm, cpm, log2], default: counts}
+      - {name: gene_column, label: Gene ID column, type: string, default: gene_id}
+      - {name: symbol_column, label: Symbol column, type: string, default: gene_symbol}
+      - {name: sample_column, label: Sample column, type: string, default: sample_id}
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: collapse_symbols, label: Collapse to symbols, type: boolean, default: false}
+
+  - id: rna.filter
+    title: Filter low-count genes
+    category: rna
+    r_function: rna_filter
+    r_file: rna_nodes.R
+    description: Keep genes expressed above a count/CPM threshold in enough samples.
+    inputs:
+      - {id: expr, label: Expression matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: expr, label: Filtered matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: summary, label: Filter summary, type: table}
+    params:
+      - {name: min_count, label: Min count, type: integer, default: 10,
+         help: "Keep a gene when its value is >= min_count in >= min_samples samples. Set 0 to disable."}
+      - {name: min_samples, label: Min samples, type: integer, default: 3}
+      - {name: min_cpm, label: Min CPM (alternative), type: number, default: 0}
+      - {name: min_total, label: Min total count, type: number, default: 0}
+
+  - id: rna.normalize
+    title: Normalize / transform
+    category: rna
+    r_function: rna_normalize
+    r_file: rna_nodes.R
+    description: Variance-stabilizing or log-CPM transformation for PCA, heatmaps and QC.
+    inputs:
+      - {id: expr, label: Count matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: normalized, label: Normalized matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: factors, label: Size factors, type: table}
+    params:
+      - {name: method, label: Method, type: enum,
+         options: [vst, rlog, cpm, tmm, log2], default: vst}
+      - {name: blind, label: Blind dispersion estimation, type: boolean, default: true}
+
+  - id: rna.pca
+    title: PCA
+    category: rna
+    r_function: rna_pca
+    r_file: rna_nodes.R
+    description: Principal component analysis of the most variable features.
+    inputs:
+      - {id: matrix, label: Normalized matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: coords, label: PCA coordinates, type: table}
+      - {id: variance, label: Variance explained, type: table}
+      - {id: plot, label: PCA plot, type: plot}
+    params:
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: ntop, label: Top variable features, type: integer, default: 500}
+      - {name: scale, label: Scale features, type: boolean, default: true}
+      - {name: label, label: Label samples, type: boolean, default: true}
+      - {name: ellipse, label: Group ellipse, type: boolean, default: true}
+      - {name: title, label: Plot title, type: string, default: PCA}
+
+  - id: rna.de
+    title: Differential expression (DESeq2)
+    category: rna
+    r_function: rna_de
+    r_file: rna_nodes.R
+    description: DESeq2 Wald test for one contrast, with optional apeglm shrinkage.
+    inputs:
+      - {id: counts, label: Count matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: results, label: DE results, type: table}
+      - {id: significant, label: Significant genes, type: table}
+      - {id: norm_counts, label: Normalized counts, type: matrix}
+      - {id: plot, label: MA plot, type: plot}
+    params:
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: numerator, label: Numerator level, type: string, default: "",
+         help: "Level compared against the denominator. Empty = last factor level."}
+      - {name: denominator, label: Denominator level, type: string, default: "",
+         help: "Reference level. Empty = first factor level."}
+      - {name: min_count, label: Pre-filter min count, type: integer, default: 10}
+      - {name: min_samples, label: Pre-filter min samples, type: integer, default: 3}
+      - {name: padj_cutoff, label: FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "|log2FC| cutoff", type: number, default: 1}
+      - {name: shrink, label: LFC shrinkage, type: enum, options: [none, apeglm], default: none}
+      - {name: design_formula, label: Design formula, type: string, default: "",
+         help: "Optional, e.g. '~ group + batch'. Empty = '~ group'."}
+
+  - id: rna.volcano
+    title: Volcano plot
+    category: rna
+    r_function: rna_volcano
+    r_file: rna_nodes.R
+    description: Volcano plot from a DESeq2 result table.
+    inputs:
+      - {id: results, label: DE results, type: table}
+    outputs:
+      - {id: plot, label: Volcano plot, type: plot}
+      - {id: summary, label: Count summary, type: table}
+    params:
+      - {name: padj_cutoff, label: FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "|log2FC| cutoff", type: number, default: 1}
+      - {name: label_top, label: Label top N, type: integer, default: 10}
+      - {name: title, label: Plot title, type: string, default: Volcano}
+
+  - id: rna.heatmap
+    title: Heatmap of top genes
+    category: rna
+    r_function: rna_heatmap
+    r_file: rna_nodes.R
+    description: Row-scaled heatmap of the strongest DE genes with group annotation.
+    inputs:
+      - {id: results, label: DE results, type: table}
+      - {id: matrix, label: Normalized matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: plot, label: Heatmap, type: plot}
+      - {id: genes, label: Selected genes, type: table}
+    params:
+      - {name: top_n, label: Top genes, type: integer, default: 50}
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: only_significant, label: Significant only, type: boolean, default: false}
+      - {name: padj_cutoff, label: FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "|log2FC| cutoff", type: number, default: 1}
+      - {name: scale_rows, label: Z-score rows, type: boolean, default: true}
+      - {name: title, label: Plot title, type: string, default: Top DE genes}
+      - {name: feature_list, label: Feature list file, type: string, default: "", help: "Optional file of gene/protein IDs or symbols, one per line, relative to workdir."}
+      - {name: cluster_rows, label: Cluster rows, type: boolean, default: true}
+      - {name: cluster_columns, label: Cluster columns, type: boolean, default: true}
+      - {name: show_row_names, label: Show row names, type: boolean, default: true}
+      - {name: z_cap, label: Z-score cap, type: number, default: 2, help: "Clamp row z-scores to this absolute value."}
+      - {name: color_low, label: Low color, type: string, default: "#2563eb"}
+      - {name: color_high, label: High color, type: string, default: "#c2410c"}
+      - {name: scale_method, label: Scale method, type: enum, options: [minmax, zscore], default: minmax}
+      - {name: width, label: Width (in), type: number, default: 0, help: "0 = automatic."}
+      - {name: height, label: Height (in), type: number, default: 0, help: "0 = automatic."}
+
+  - id: rna.enrich_ora
+    title: GO over-representation
+    category: rna
+    r_function: rna_enrich_ora
+    r_file: rna_nodes.R
+    description: >-
+      clusterProfiler enrichGO on up/down regulated genes, using org.Mm.eg.db
+      or org.Hs.eg.db. Runs offline; no network access required.
+    inputs:
+      - {id: results, label: DE results, type: table}
+    outputs:
+      - {id: table, label: Enrichment table, type: table}
+      - {id: plot, label: Dot plot, type: plot}
+    params:
+      - {name: organism, label: Organism, type: enum, options: [mouse, human], default: mouse}
+      - {name: ontology, label: Ontology, type: enum, options: [BP, MF, CC], default: BP}
+      - {name: direction, label: Direction, type: enum, options: [up, down, both], default: both}
+      - {name: padj_cutoff, label: FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "|log2FC| cutoff", type: number, default: 1}
+      - {name: pvalue_cutoff, label: Enrichment p cutoff, type: number, default: 0.05}
+      - {name: qvalue_cutoff, label: Enrichment q cutoff, type: number, default: 0.2}
+      - {name: top_n, label: Top terms shown, type: integer, default: 20}
+
+  - id: rna.enrich_gsea
+    title: GO gene set enrichment
+    category: rna
+    r_function: rna_enrich_gsea
+    r_file: rna_nodes.R
+    description: >-
+      clusterProfiler gseGO on the ranked DESeq2 statistic. Runs offline
+      through GO.db and org.Mm.eg.db / org.Hs.eg.db.
+    inputs:
+      - {id: results, label: DE results, type: table}
+    outputs:
+      - {id: table, label: GSEA table, type: table}
+      - {id: plot, label: Dot plot, type: plot}
+    params:
+      - {name: organism, label: Organism, type: enum, options: [mouse, human], default: mouse}
+      - {name: ontology, label: Ontology, type: enum, options: [BP, MF, CC], default: BP}
+      - {name: ranking, label: Ranking metric, type: enum, options: [stat, log2FoldChange], default: stat}
+      - {name: pvalue_cutoff, label: p cutoff, type: number, default: 0.05}
+      - {name: min_size, label: Min gene set size, type: integer, default: 10}
+      - {name: max_size, label: Max gene set size, type: integer, default: 500}
+      - {name: top_n, label: Top terms shown, type: integer, default: 20}
+
+  - id: rna.gsea_kegg
+    title: KEGG GSEA (reference style)
+    category: rna
+    r_function: rna_gsea_kegg
+    r_file: rna_nodes.R
+    description: >-
+      clusterProfiler gseKEGG on significant DE genes ranked by the DESeq2
+      statistic. Genes are mapped to ENTREZ with a symbol fallback, pathways
+      use mouse (mmu) or human (hsa) KEGG, and the node writes a KEGG table,
+      a pathway dot plot and a compact significant-gene heatmap with
+      running-ES side panels.
+    inputs:
+      - {id: results, label: DE results, type: table}
+      - {id: matrix, label: Normalized matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: table, label: KEGG GSEA table, type: table}
+      - {id: plot, label: Pathway dot plot, type: plot}
+      - {id: heatmap, label: GSEA heatmap, type: plot}
+    params:
+      - {name: organism, label: Organism, type: enum, options: [mouse, human], default: mouse}
+      - {name: ranking, label: Ranking metric, type: enum, options: [stat, log2FoldChange], default: stat}
+      - {name: padj_cutoff, label: DE FDR cutoff, type: number, default: 0.05, help: "Only genes with padj below this enter the ranked list."}
+      - {name: pvalue_cutoff, label: Pathway p.adjust cutoff, type: number, default: 0.05}
+      - {name: min_size, label: Min gene set size, type: integer, default: 10}
+      - {name: max_size, label: Max gene set size, type: integer, default: 500}
+      - {name: top_n, label: Top pathways shown, type: integer, default: 20}
+      - {name: pathways, label: Pathway IDs, type: string, default: "", help: "Optional comma-separated KEGG IDs (e.g. mmu04060,mmu04142); empty = significant pathways."}
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: scale_method, label: Scale method, type: enum, options: [minmax, zscore], default: minmax}
+      - {name: group_labels, label: Group labels, type: string, default: "", help: "Optional comma-separated column labels; empty = raw group names."}
+      - {name: color_low, label: Low color, type: string, default: "#3B5998"}
+      - {name: color_high, label: High color, type: string, default: "#E42528"}
+      - {name: width, label: Width (in), type: number, default: 0, help: "0 = automatic."}
+      - {name: height, label: Height (in), type: number, default: 0, help: "0 = automatic."}
+      - {name: seed, label: Seed, type: integer, default: 1}
+
+  # ---------------------------------------------------------------------------
+  # Bulk proteomics
+  # ---------------------------------------------------------------------------
+  - id: prot.load_maxquant
+    title: Load MaxQuant proteinGroups
+    category: proteomics
+    r_function: prot_load_maxquant
+    r_file: prot_nodes.R
+    description: >-
+      Parse a MaxQuant proteinGroups.txt, drop decoys/contaminants/site-only
+      hits, collapse to one row per lead protein and extract a protein x
+      sample intensity matrix plus annotation.
+    inputs: []
+    outputs:
+      - {id: matrix, label: Protein matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: features, label: Annotation, type: table}
+    params:
+      - {name: protein_groups, label: proteinGroups.txt, type: file, required: true,
+         help: "Project example: scp_AD/data/CR_2024/PXD046756/proteinGroups.txt"}
+      - {name: intensity_type, label: Intensity type, type: enum,
+         options: [Intensity, LFQ intensity, iBAQ], default: Intensity}
+      - {name: sample_sheet, label: Sample sheet, type: file, required: false}
+      - {name: sample_column, label: Sample column, type: string, default: sample_id}
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: sample_regex, label: Sample regex filter, type: string, default: "",
+         help: "Optional regex applied to sample names, e.g. '^BV2'."}
+      - {name: group_strip_regex, label: Group strip regex, type: string, default: "[-_ ]?[0-9]+$",
+         help: "Trailing pattern removed from sample names to infer groups."}
+
+  - id: prot.filter
+    title: Filter proteins by missingness
+    category: proteomics
+    r_function: prot_filter
+    r_file: prot_nodes.R
+    description: Convert zeros to missing and keep proteins quantified in enough samples.
+    inputs:
+      - {id: matrix, label: Protein matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: features, label: Annotation, type: table}
+    outputs:
+      - {id: matrix, label: Filtered matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: features, label: Annotation, type: table}
+      - {id: summary, label: Filter summary, type: table}
+    params:
+      - {name: zero_as_missing, label: Treat zero as missing, type: boolean, default: true}
+      - {name: min_valid_frac, label: Min valid fraction, type: number, default: 0.5,
+         help: "Fraction of samples in which a protein must be quantified."}
+      - {name: min_valid, label: Min valid samples (override), type: integer, default: 0}
+      - {name: min_peptides, label: Min unique peptides, type: integer, default: 1}
+
+  - id: prot.transform
+    title: Log2 + normalize
+    category: proteomics
+    r_function: prot_transform
+    r_file: prot_nodes.R
+    description: Log2 transformation followed by median or quantile normalization.
+    inputs:
+      - {id: matrix, label: Protein matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: matrix, label: Normalized matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: plot, label: Box plot, type: plot}
+    params:
+      - {name: log2, label: Log2 transform, type: boolean, default: true}
+      - {name: pseudocount, label: Pseudocount, type: number, default: 0}
+      - {name: normalize, label: Normalization, type: enum,
+         options: [median, quantile, none], default: median}
+
+  - id: prot.impute
+    title: Impute missing values
+    category: proteomics
+    r_function: prot_impute
+    r_file: prot_nodes.R
+    description: >-
+      Left-censored imputation (MinProb / MinDet) or kNN, applied on the
+      log2 scale. MNAR-style missing values are drawn from a down-shifted
+      normal distribution per sample.
+    inputs:
+      - {id: matrix, label: Normalized matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: matrix, label: Imputed matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+      - {id: summary, label: Imputation summary, type: table}
+      - {id: plot, label: Density plot, type: plot}
+    params:
+      - {name: method, label: Method, type: enum,
+         options: [MinProb, MinDet, kNN, none], default: MinProb}
+      - {name: width, label: MinProb width, type: number, default: 0.3}
+      - {name: downshift, label: MinProb downshift, type: number, default: 1.8}
+      - {name: k, label: kNN k, type: integer, default: 10}
+      - {name: seed, label: Random seed, type: integer, default: 1}
+
+  - id: prot.pca
+    title: PCA
+    category: proteomics
+    r_function: prot_pca
+    r_file: prot_nodes.R
+    description: PCA of the imputed protein matrix.
+    inputs:
+      - {id: matrix, label: Protein matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: coords, label: PCA coordinates, type: table}
+      - {id: variance, label: Variance explained, type: table}
+      - {id: plot, label: PCA plot, type: plot}
+    params:
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: ntop, label: Top variable proteins, type: integer, default: 500}
+      - {name: scale, label: Scale features, type: boolean, default: true}
+      - {name: label, label: Label samples, type: boolean, default: true}
+      - {name: ellipse, label: Group ellipse, type: boolean, default: true}
+      - {name: title, label: Plot title, type: string, default: PCA}
+
+  - id: prot.de
+    title: Differential abundance (limma)
+    category: proteomics
+    r_function: prot_de
+    r_file: prot_nodes.R
+    description: limma moderated t-test on log2 protein intensities.
+    inputs:
+      - {id: matrix, label: Protein matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: results, label: DE results, type: table}
+      - {id: significant, label: Significant proteins, type: table}
+      - {id: plot, label: MA plot, type: plot}
+    params:
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: numerator, label: Numerator level, type: string, default: ""}
+      - {name: denominator, label: Denominator level, type: string, default: ""}
+      - {name: trend, label: Trended eBayes, type: boolean, default: true}
+      - {name: robust, label: Robust eBayes, type: boolean, default: true}
+      - {name: adjust, label: P adjustment, type: enum, options: [BH, BY, none], default: BH}
+      - {name: padj_cutoff, label: FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "|log2FC| cutoff", type: number, default: 1}
+
+  - id: prot.volcano
+    title: Volcano plot
+    category: proteomics
+    r_function: prot_volcano
+    r_file: prot_nodes.R
+    description: Volcano plot from a limma result table.
+    inputs:
+      - {id: results, label: DE results, type: table}
+    outputs:
+      - {id: plot, label: Volcano plot, type: plot}
+      - {id: summary, label: Count summary, type: table}
+    params:
+      - {name: padj_cutoff, label: FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "|log2FC| cutoff", type: number, default: 1}
+      - {name: label_top, label: Label top N, type: integer, default: 10}
+      - {name: title, label: Plot title, type: string, default: Volcano}
+
+  - id: prot.heatmap
+    title: Heatmap of top proteins
+    category: proteomics
+    r_function: prot_heatmap
+    r_file: prot_nodes.R
+    description: Row-scaled heatmap of the strongest differential proteins.
+    inputs:
+      - {id: results, label: DE results, type: table}
+      - {id: matrix, label: Protein matrix, type: matrix}
+      - {id: samples, label: Sample sheet, type: table}
+    outputs:
+      - {id: plot, label: Heatmap, type: plot}
+      - {id: genes, label: Selected proteins, type: table}
+    params:
+      - {name: top_n, label: Top proteins, type: integer, default: 50}
+      - {name: group_column, label: Group column, type: string, default: group}
+      - {name: only_significant, label: Significant only, type: boolean, default: false}
+      - {name: padj_cutoff, label: FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "|log2FC| cutoff", type: number, default: 1}
+      - {name: scale_rows, label: Z-score rows, type: boolean, default: true}
+      - {name: title, label: Plot title, type: string, default: Top DE proteins}
+      - {name: feature_list, label: Feature list file, type: string, default: "", help: "Optional file of gene/protein IDs or symbols, one per line, relative to workdir."}
+      - {name: cluster_rows, label: Cluster rows, type: boolean, default: true}
+      - {name: cluster_columns, label: Cluster columns, type: boolean, default: true}
+      - {name: show_row_names, label: Show row names, type: boolean, default: true}
+      - {name: z_cap, label: Z-score cap, type: number, default: 2, help: "Clamp row z-scores to this absolute value."}
+      - {name: color_low, label: Low color, type: string, default: "#2563eb"}
+      - {name: color_high, label: High color, type: string, default: "#c2410c"}
+      - {name: width, label: Width (in), type: number, default: 0, help: "0 = automatic."}
+      - {name: height, label: Height (in), type: number, default: 0, help: "0 = automatic."}
+
+  - id: prot.enrich_ora
+    title: GO over-representation
+    category: proteomics
+    r_function: prot_enrich_ora
+    r_file: prot_nodes.R
+    description: >-
+      GO over-representation for differential proteins. Gene symbols are
+      taken from the MaxQuant "Gene names" annotation and mapped through
+      org.Mm.eg.db or org.Hs.eg.db offline.
+    inputs:
+      - {id: results, label: DE results, type: table}
+    outputs:
+      - {id: table, label: Enrichment table, type: table}
+      - {id: plot, label: Dot plot, type: plot}
+    params:
+      - {name: organism, label: Organism, type: enum, options: [mouse, human], default: mouse}
+      - {name: ontology, label: Ontology, type: enum, options: [BP, MF, CC], default: BP}
+      - {name: direction, label: Direction, type: enum, options: [up, down, both], default: both}
+      - {name: padj_cutoff, label: DE FDR cutoff, type: number, default: 0.05}
+      - {name: lfc_cutoff, label: "DE |log2FC| cutoff", type: number, default: 1}
+      - {name: pvalue_cutoff, label: Enrichment p cutoff, type: number, default: 0.05}
+      - {name: qvalue_cutoff, label: Enrichment q cutoff, type: number, default: 0.2}
+      - {name: top_n, label: Top terms shown, type: integer, default: 20}

@@ -1,0 +1,197 @@
+{
+  "name": "RNA-seq GSE116271 (foam vs non-foam)",
+  "nodes": [
+    {
+      "id": "load",
+      "type": "rna.load_matrix",
+      "x": 40,
+      "y": 260,
+      "params": {
+        "expression": "scp_CAD/res/txt/GSE116271_bulk_2026-10-15/counts_matrix.tsv",
+        "sample_sheet": "scp_CAD/res/txt/GSE116271_bulk_2026-10-15/samples.tsv",
+        "matrix_type": "counts"
+      }
+    },
+    {
+      "id": "filter",
+      "type": "rna.filter",
+      "x": 300,
+      "y": 260,
+      "params": {
+        "min_count": 10,
+        "min_samples": 3
+      }
+    },
+    {
+      "id": "normalize",
+      "type": "rna.normalize",
+      "x": 560,
+      "y": 100,
+      "params": {
+        "method": "vst",
+        "blind": true
+      }
+    },
+    {
+      "id": "pca",
+      "type": "rna.pca",
+      "x": 820,
+      "y": 60,
+      "params": {
+        "group_column": "group",
+        "ntop": 500,
+        "title": "GSE116271 PCA (VST)"
+      }
+    },
+    {
+      "id": "de",
+      "type": "rna.de",
+      "x": 560,
+      "y": 360,
+      "params": {
+        "group_column": "group",
+        "numerator": "non_foam",
+        "denominator": "foam",
+        "min_count": 10,
+        "min_samples": 3,
+        "padj_cutoff": 0.05,
+        "lfc_cutoff": 1
+      }
+    },
+    {
+      "id": "volcano",
+      "type": "rna.volcano",
+      "x": 820,
+      "y": 400,
+      "params": {
+        "padj_cutoff": 0.05,
+        "lfc_cutoff": 1,
+        "label_top": 12,
+        "title": "non-foam vs foam"
+      }
+    },
+    {
+      "id": "heatmap",
+      "type": "rna.heatmap",
+      "x": 820,
+      "y": 220,
+      "params": {
+        "top_n": 40,
+        "group_column": "group",
+        "only_significant": false,
+        "title": "Top DE genes"
+      }
+    },
+    {
+      "id": "go_ora",
+      "type": "rna.enrich_ora",
+      "x": 820,
+      "y": 560,
+      "params": {
+        "organism": "mouse",
+        "ontology": "BP",
+        "direction": "both",
+        "padj_cutoff": 0.05,
+        "lfc_cutoff": 1
+      }
+    },
+    {
+      "id": "go_gsea",
+      "type": "rna.enrich_gsea",
+      "x": 560,
+      "y": 560,
+      "params": {
+        "organism": "mouse",
+        "ontology": "BP",
+        "ranking": "stat",
+        "pvalue_cutoff": 0.05
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "load",
+      "from_port": "expr",
+      "to": "filter",
+      "to_port": "expr"
+    },
+    {
+      "from": "load",
+      "from_port": "samples",
+      "to": "filter",
+      "to_port": "samples"
+    },
+    {
+      "from": "filter",
+      "from_port": "expr",
+      "to": "normalize",
+      "to_port": "expr"
+    },
+    {
+      "from": "filter",
+      "from_port": "samples",
+      "to": "normalize",
+      "to_port": "samples"
+    },
+    {
+      "from": "normalize",
+      "from_port": "normalized",
+      "to": "pca",
+      "to_port": "matrix"
+    },
+    {
+      "from": "normalize",
+      "from_port": "samples",
+      "to": "pca",
+      "to_port": "samples"
+    },
+    {
+      "from": "filter",
+      "from_port": "expr",
+      "to": "de",
+      "to_port": "counts"
+    },
+    {
+      "from": "filter",
+      "from_port": "samples",
+      "to": "de",
+      "to_port": "samples"
+    },
+    {
+      "from": "de",
+      "from_port": "results",
+      "to": "volcano",
+      "to_port": "results"
+    },
+    {
+      "from": "de",
+      "from_port": "results",
+      "to": "heatmap",
+      "to_port": "results"
+    },
+    {
+      "from": "normalize",
+      "from_port": "normalized",
+      "to": "heatmap",
+      "to_port": "matrix"
+    },
+    {
+      "from": "normalize",
+      "from_port": "samples",
+      "to": "heatmap",
+      "to_port": "samples"
+    },
+    {
+      "from": "de",
+      "from_port": "results",
+      "to": "go_ora",
+      "to_port": "results"
+    },
+    {
+      "from": "de",
+      "from_port": "results",
+      "to": "go_gsea",
+      "to_port": "results"
+    }
+  ]
+}

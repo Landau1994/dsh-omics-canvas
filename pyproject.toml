@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omics-canvas"
+version = "0.1.0"
+description = "Canvas-style node engine for omics analysis (bulk RNA-seq and proteomics examples)"
+requires-python = ">=3.9"
+dependencies = ["PyYAML>=6"]
+
+[project.scripts]
+omics-canvas = "omics_canvas.cli:main"
+
+[tool.setuptools]
+packages = ["omics_canvas"]
+
+[tool.setuptools.package-data]
+omics_canvas = ["specs/*.yaml", "specs/examples/*.json"]

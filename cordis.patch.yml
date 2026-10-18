@@ -1,0 +1,13 @@
+# dsh-omics-canvas bundle layer.
+# Install with:
+#   dsh plugin --profile web add /path/to/dsh-omics-canvas
+#
+# pluginRoot defaults to this package and workdir defaults to the DSH process
+# cwd. Override them in the profile patch when the data live elsewhere:
+#   config:
+#     workdir: /path/to/workspace
+- insert:
+    - id: omics-canvas
+      name: dsh-omics-canvas
+      config:
+        env: scptools
